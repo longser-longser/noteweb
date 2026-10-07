@@ -1,0 +1,2 @@
+﻿markdown-it@15.0.2
+@highlightjs/cdn-assets@11.12.0

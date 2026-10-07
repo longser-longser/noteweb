@@ -1,0 +1,79 @@
+# 把网站自动发布到 GitHub Pages。
+#
+# 工作方式：你把改动 push 到 main 分支后，GitHub 的服务器会自动
+#   ① 装好 Node → ② 跑同步 → ③ 打包 → ④ 把成品发布到 Pages。
+# 所以你只需要 push，网站就会自己更新，不需要手动打包上传。
+#
+# 首次使用前，需要在仓库里做一次设置：
+#   Settings → Pages → Build and deployment → Source 选「GitHub Actions」
+#
+# 详细步骤见 NoteWeb/部署到网上.md
+#
+# ⚠️ 仓库根目录应该是「整理部署」这一层（里面同时有 已总结稿.md\ 和 NoteWeb\），
+#    不是 NoteWeb 自己——因为同步脚本要从 ../已总结稿.md 读笔记源文件。
+#    下面所有命令都在 NoteWeb/ 子目录里跑，打包产物是 NoteWeb/dist。
+
+name: 发布笔记网站
+
+on:
+  # 推送到 main 分支时自动发布
+  push:
+    branches: [main]
+  # 也可以在仓库页面的 Actions 里手动点一下触发
+  workflow_dispatch:
+
+# 允许这个工作流向 Pages 发布内容
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+# 同一时间只跑一个发布任务；新的推送会取消还在排队/进行的旧任务
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: 打包
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: NoteWeb
+    steps:
+      - name: 取出仓库内容
+        uses: actions/checkout@v4
+
+      - name: 安装 Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: 同步笔记并打包成静态网站
+        run: |
+          test -d ../已总结稿.md || { echo "✗ 找不到 ../已总结稿.md —— 仓库根应该是「整理部署」这一层"; exit 1; }
+          node scripts/sync-notes.mjs
+          node scripts/build.mjs
+
+      - name: 确认打包结果
+        run: |
+          echo "打包出的页面："
+          ls -lh dist/
+          test -f dist/index.html || (echo "✗ 缺少 dist/index.html" && exit 1)
+
+      - name: 上传打包结果
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: NoteWeb/dist
+
+  deploy:
+    name: 发布
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: 发布到 GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

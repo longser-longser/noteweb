@@ -1,0 +1,6 @@
+{
+  "//": "这个文件夹里是第三方库的浏览器版（UMD / CommonJS 格式）。",
+  "//2": "本项目的 package.json 声明了 \"type\": \"module\"，如果不在这里显式声明，",
+  "//3": "Node 会把这里的 .js 文件当成 ES Module 加载，导致 require() 拿不到任何内容。",
+  "type": "commonjs"
+}

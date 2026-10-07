@@ -1,0 +1,12 @@
+# 打包产物（每次 build 重新生成，不需要提交/备份）
+dist/
+
+# 笔记副本与清单（由 npm run sync 从「已总结稿.md」重新生成）
+notes/
+data/manifest.json
+
+# 系统杂项
+.DS_Store
+Thumbs.db
+node_modules/
+*.log

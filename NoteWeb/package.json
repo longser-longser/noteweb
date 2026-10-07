@@ -1,0 +1,24 @@
+{
+  "name": "noteweb",
+  "version": "1.0.0",
+  "private": true,
+  "description": "把 Markdown 课堂笔记变成网站的本地程序：本地服务器 + 静态打包两种模式",
+  "type": "module",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "start": "node scripts/serve.mjs",
+    "serve": "node scripts/serve.mjs",
+    "sync": "node scripts/sync-notes.mjs",
+    "build": "node scripts/build.mjs",
+    "preview": "node scripts/preview.mjs",
+    "check": "node scripts/selftest.mjs"
+  },
+  "keywords": [
+    "markdown",
+    "notes",
+    "static-site"
+  ],
+  "license": "MIT"
+}
