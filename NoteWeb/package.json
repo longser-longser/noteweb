@@ -13,6 +13,7 @@
     "sync": "node scripts/sync-notes.mjs",
     "build": "node scripts/build.mjs",
     "preview": "node scripts/preview.mjs",
+    "music": "node scripts/music-scan.mjs",
     "check": "node scripts/selftest.mjs"
   },
   "keywords": [

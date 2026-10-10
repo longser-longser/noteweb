@@ -72,6 +72,11 @@
 
 * { box-sizing: border-box; }
 
+/* 浏览器默认的 [hidden] { display: none } 会被后面的类选择器盖掉
+   （比如 .to-top { display: grid }），于是「回到顶部」按钮一直挂在那儿，
+   JS 里 top.hidden = true 等于没生效。这里补一条兜底，凡是带 hidden 属性的就真的不显示。 */
+[hidden] { display: none !important; }
+
 html { scroll-behavior: smooth; scroll-padding-top: 74px; -webkit-text-size-adjust: 100%; }
 
 body {

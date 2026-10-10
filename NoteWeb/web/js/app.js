@@ -113,7 +113,10 @@
 
     input.addEventListener('input', run)
     document.addEventListener('keydown', function (e) {
-      if (e.key === '/' && document.activeElement !== input) {
+      // 正在别的输入框里打字（比如音乐库搜索框）时不要抢焦点
+      var a = document.activeElement
+      var typing = a && a !== input && (a.tagName === 'INPUT' || a.tagName === 'TEXTAREA' || a.isContentEditable)
+      if (e.key === '/' && !typing && document.activeElement !== input) {
         e.preventDefault()
         input.focus()
         input.select()

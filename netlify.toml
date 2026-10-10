@@ -1,0 +1,17 @@
+# Netlify 配置（只有"用 Git 仓库自动发布"时才用得上；手动拖拽上传不需要这个文件）
+#
+# 仓库根目录是「整理部署」这一层，网站程序在 NoteWeb/ 子目录里：
+#   ① 已总结稿.md\  —— 25 篇笔记的源文件（仓库里有）
+#   ② NoteWeb\      —— 网站程序；dist\ 是现场打包出来的成品
+#
+# 注意：music\ 里的音频不在仓库里（见 .gitignore），所以 Netlify 自动打包出来的
+#       是不含音频的轻量版（约 2 MB）—— 这也正好躲开了「单文件超过 10 MB 传不上去」的限制。
+#       想把音乐也放上网，需要另外准备压过的网络版音频。
+
+[build]
+  base = "NoteWeb"
+  command = "node scripts/sync-notes.mjs && node scripts/build.mjs"
+  publish = "dist"
+
+[build.environment]
+  NODE_VERSION = "22"

@@ -5,6 +5,18 @@ dist/
 notes/
 data/manifest.json
 
+# 曲库清单与从音频里抽出来的封面（由 npm run music / npm run build 自动生成）
+data/music.json
+web/music/covers/
+
+# 曲库里的音频文件：几百 MB，而且都是有版权的商业录音。
+# 不要推到 GitHub（仓库会变得极大，公开仓库还等于把音频公开发布），留在本地听。
+music/
+
+# 打包出来的发布包（几百 KB~几 MB，随时能重新生成）
+dist-*/
+_发布包_*.zip
+
 # 系统杂项
 .DS_Store
 Thumbs.db

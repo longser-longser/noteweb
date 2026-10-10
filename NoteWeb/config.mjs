@@ -15,7 +15,7 @@ export const config = {
   siteTitle: '课堂笔记',
 
   /** 网站副标题（显示在侧边栏标题下方，留空则隐藏） */
-  siteTagline: '录音整理 · 22 篇',
+  siteTagline: '录音整理', // 仅当清单里没有篇数时兜底；正常情况下副标题由 site.mjs 渲染成「录音整理 · N 篇」
 
   /** 笔记原始来源文件夹（自动同步脚本会把它读进来） */
   sourceDir: join(ROOT, '..', '已总结稿.md'),
@@ -26,11 +26,31 @@ export const config = {
   /** 网页文件所在文件夹 */
   webDir: join(ROOT, 'web'),
 
-  /** 打包输出文件夹（静态部署用） */
-  distDir: join(ROOT, 'dist'),
+  /**
+   * 打包输出文件夹（静态部署用）。
+   * 默认 dist；用环境变量 NW_DIST 可以换个目录，比如给「不含音频的轻量版」单独出一个包：
+   *   set NW_NO_MUSIC=1 && set NW_DIST=dist-网页版 && node scripts/build.mjs
+   * （这样原来的 dist 不会被覆盖，本地带音乐的版本照旧）
+   */
+  distDir: join(ROOT, process.env.NW_DIST || 'dist'),
 
   /** 生成的清单文件（不用管） */
   manifestFile: join(ROOT, 'data', 'manifest.json'),
+
+  /** 曲库文件夹：想加歌就把音频文件丢进这里（支持子文件夹），清单自动重扫 */
+  musicDir: join(ROOT, 'music'),
+
+  /** 曲库清单（自动扫描生成，不用手改） */
+  musicManifestFile: join(ROOT, 'data', 'music.json'),
+
+  /** 曲库手工补充信息（可选）：补标题/艺术家/封面/歌词/排序，或给原创作品打标记 */
+  musicOverridesFile: join(ROOT, 'music.overrides.json'),
+
+  /** 播放器前端资源文件夹（会被整体复制进网站） */
+  musicWebDir: join(ROOT, 'web', 'music'),
+
+  /** 音乐库页面地址（相对网站根目录），侧边栏入口和播放器都用它 */
+  musicPage: 'music/',
 
   /** 本地服务器端口。被占用时，加 --port=其它数字 换一个 */
   port: 5173,

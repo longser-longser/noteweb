@@ -19,7 +19,8 @@ import { spawn } from 'node:child_process'
 import { config } from '../config.mjs'
 import { buildManifest } from './manifest.mjs'
 import { renderMarkdown, extractHeadings } from './renderer.mjs'
-import { renderPage, buildNav, indexNotes } from './site.mjs'
+import { renderPage, buildNav, indexNotes, musicPageBody } from './site.mjs'
+import { ensureMusicLibrary } from './music-scan.mjs'
 
 /* ------------------------------- 参数解析 ------------------------------- */
 const argv = process.argv.slice(2)
@@ -117,6 +118,17 @@ const MIME = {
   '.pdf': 'application/pdf',
   '.txt': 'text/plain; charset=utf-8',
   '.woff2': 'font/woff2',
+  '.mp3': 'audio/mpeg',
+  '.flac': 'audio/flac',
+  '.wav': 'audio/wav',
+  '.m4a': 'audio/mp4',
+  '.aac': 'audio/aac',
+  '.ogg': 'audio/ogg',
+  '.oga': 'audio/ogg',
+  '.opus': 'audio/ogg',
+  '.weba': 'audio/webm',
+  '.aif': 'audio/aiff',
+  '.aiff': 'audio/aiff',
 }
 
 function send(res, code, body, headers = {}) {
@@ -140,6 +152,53 @@ async function readIfFile(root, relPath) {
 
 function html(res, body, code = 200) {
   send(res, code, body, { 'Content-Type': MIME['.html'] })
+}
+
+/**
+ * 音频文件：支持 Range 请求（浏览器拖进度条、跳过一段都靠它），
+ * 否则 <audio> 拿不到 206 就没法定位播放。
+ */
+function sendMedia(req, res, found) {
+  const { target, stat } = found
+  const type = MIME[extname(target).toLowerCase()] || 'application/octet-stream'
+  const total = stat.size
+  const range = req.headers.range
+  if (range) {
+    const m = /^bytes=(\d*)-(\d*)$/.exec(String(range).trim())
+    if (m) {
+      let start = m[1] === '' ? null : Number(m[1])
+      let end = m[2] === '' ? null : Number(m[2])
+      if (start === null && end !== null) { start = Math.max(0, total - end); end = total - 1 }
+      else {
+        if (start === null) start = 0
+        if (end === null || end >= total) end = total - 1
+      }
+      if (!isFinite(start) || !isFinite(end) || start > end || start >= total) {
+        res.writeHead(416, { 'Content-Range': `bytes */${total}`, 'Accept-Ranges': 'bytes' })
+        return res.end()
+      }
+      res.writeHead(206, {
+        'Content-Type': type,
+        'Content-Length': end - start + 1,
+        'Content-Range': `bytes ${start}-${end}/${total}`,
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'no-store',
+        'X-Content-Type-Options': 'nosniff',
+      })
+      if (req.method === 'HEAD') return res.end()
+      fs.createReadStream(target, { start, end }).pipe(res)
+      return
+    }
+  }
+  res.writeHead(200, {
+    'Content-Type': type,
+    'Content-Length': total,
+    'Accept-Ranges': 'bytes',
+    'Cache-Control': 'no-store',
+    'X-Content-Type-Options': 'nosniff',
+  })
+  if (req.method === 'HEAD') return res.end()
+  fs.createReadStream(target).pipe(res)
 }
 
 /** 一个简单的提示页（404 等） */
@@ -206,6 +265,7 @@ async function handle(req, res) {
       headings: extractHeadings(content),
       live: LIVE,
       port: PORT,
+      music: (await ensureMusicLibrary()).count,
     })
     return html(res, page)
   }
@@ -220,10 +280,40 @@ async function handle(req, res) {
     })
   }
 
+  /* --- 音乐库：页面、曲库清单、音频文件 --- */
+  if (pathname === '/music/library.json') {
+    const lib = await ensureMusicLibrary()
+    return send(res, 200, JSON.stringify(lib), { 'Content-Type': MIME['.json'] })
+  }
+  if (pathname === '/music' || pathname === '/music/') {
+    const lib = await ensureMusicLibrary()
+    const mf = await getManifest()
+    const notes = indexNotes(mf.notes)
+    const page = renderPage({
+      title: `音乐库 · ${config.siteTitle}`,
+      manifest: { ...mf, notes },
+      current: -1,
+      assets: '/',
+      urlPrefix: '/note?p=',
+      nav: buildNav(notes, '/note?p='),
+      live: LIVE,
+      port: PORT,
+      mainHtml: musicPageBody(lib, { homeHref: '/' }),
+      music: lib.count,
+    })
+    return html(res, page)
+  }
+  if (pathname.startsWith('/music/')) {
+    // 音频按原文件发送（支持 Range）；找不到就走下面的 web 静态资源（player.js / css / 封面）
+    const found = await readIfFile(config.musicDir, pathname.slice('/music/'.length))
+    if (found) return sendMedia(req, res, found)
+  }
+
   /* --- 其它静态资源（css / js / 图片） --- */
   if (pathname === '/' || pathname === '' || pathname === '/index.html') {
     const mf = await getManifest()
     const notes = indexNotes(mf.notes)
+    const lib = await ensureMusicLibrary()
     const page = renderPage({
       title: `${config.siteTitle} · 首页`,
       manifest: { ...mf, notes },
@@ -231,6 +321,7 @@ async function handle(req, res) {
       assets: '/',
       urlPrefix: '/note?p=',
       nav: buildNav(notes, '/note?p='),
+      music: lib.count,
     })
     return html(res, page)
   }
