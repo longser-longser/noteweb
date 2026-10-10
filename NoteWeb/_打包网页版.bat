@@ -41,14 +41,14 @@ echo     _发布包_网页版.zip    同一个东西，压成了一个文件
 echo.
 echo   上传方法 A（最简单）：打开 https://app.netlify.com/drop
 echo                        把上面任意一个拖进页面，等十几秒就出网址
-echo   上传方法 B（自动更新）：把改动 push 到 GitHub，Pages 会自己重新发布
+echo   上传方法 B（自动更新）：双击 _更新到GitHub.bat，GitHub 会自己发布
 echo ============================================================
-start "" explorer "%~dp0"
-pause
+if not "%NOTES_NO_BROWSER%"=="1" start "" explorer "%~dp0"
+if not "%NOTES_NO_PAUSE%"=="1" pause
 exit /b 0
 
 :fail
 echo.
 echo 打包失败，把上面的红字发给我看看。
-pause
+if not "%NOTES_NO_PAUSE%"=="1" pause
 exit /b 1
