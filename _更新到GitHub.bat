@@ -54,7 +54,21 @@ if errorlevel 1 goto :fail
 echo.
 echo 正在推送到 GitHub...
 %GITC% push origin main
+if not errorlevel 1 goto :pushed
+
+echo.
+echo   直连没成功（国内网络常见），改用本机代理再试一次...
+set "PROXY="
+for /f "usebackq delims=" %%i in (`powershell -NoProfile -Command "$p=(Get-ItemProperty 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Internet Settings' -ErrorAction SilentlyContinue).ProxyServer; if($p){($p -split ';')[0] -replace '^.*=','' -replace '\s',''}"`) do set "PROXY=%%i"
+if "%PROXY%"=="" (
+  echo   没读到本机代理，直接按失败处理。
+  goto :push_fail
+)
+echo   本机代理：%PROXY%
+%GITC% -c http.proxy=http://%PROXY% push origin main
 if errorlevel 1 goto :push_fail
+
+:pushed
 
 echo.
 echo ============================================================
