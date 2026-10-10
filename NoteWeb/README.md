@@ -119,6 +119,8 @@ courseDisplay: {
 |---|---|
 | `_打包网站.bat` | 同步 + 打包 + 自检 → `dist\`（**带无损音乐，470 MB**，本地/局域网用） |
 | `_打包网页版.bat` | 打包成能上传的版本 → `dist-网页版\` + `_发布包_网页版.zip`。**有 `music-web\` 就一起装上**（14 首 MP3，约 54 MB，线上有播放器）；没有就打成纯笔记版（约 2 MB） |
+| `..\_更新到GitHub.bat` | 在仓库根 `整理部署\` 里：提交 + 推送到 GitHub，推完 GitHub 自动重新打包发布（**日常更新用这个**） |
+| `..\_一键发布到GitHub.bat` | 同样在仓库根：首次发布用（问用户名/仓库名、连远端、开 Pages） |
 
 > 网页版等价于：`NW_MUSIC_DIR=music-web` + `NW_DIST=dist-网页版` 跑 `npm run build`（没有 `music-web\` 时用 `NW_NO_MUSIC=1`）；
 > 输出目录用 `NW_DIST` 换，所以原来的 `dist\` 不会被覆盖。
