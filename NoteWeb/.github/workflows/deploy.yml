@@ -40,6 +40,10 @@ jobs:
     defaults:
       run:
         working-directory: NoteWeb
+    env:
+      # 线上用 music-web（14 首 MP3，约 52 MB，仓库里带得动）。
+      # 本地听无损还是 music/（FLAC 468 MB），那个目录被 .gitignore 排除、不进仓库。
+      NW_MUSIC_DIR: music-web
     steps:
       - name: 取出仓库内容
         uses: actions/checkout@v4
@@ -60,6 +64,8 @@ jobs:
           echo "打包出的页面："
           ls -lh dist/
           test -f dist/index.html || (echo "✗ 缺少 dist/index.html" && exit 1)
+          test -f dist/music/library.json || (echo "✗ 缺少 dist/music/library.json —— 线上曲库没打进去" && exit 1)
+          echo "曲库里的音频文件：$(ls dist/music/*.mp3 2>/dev/null | wc -l) 个"
 
       - name: 上传打包结果
         uses: actions/upload-pages-artifact@v3

@@ -190,7 +190,14 @@ function parseId3(buf) {
   return out
 }
 
-/** MP3：ID3 标签 + 用第一个帧头估算码率/时长（VBR 文件属于估算，会标注 estimate） */
+/**
+ * MP3：ID3 标签 + 按 MPEG 帧头读码率/采样率/声道。
+ *
+ * 时长优先用 Xing/Info 头里的帧数算（VBR 也准，标注 container）；
+ * 没有 Xing/Info 就按 CBR 估算（标注 estimate）。
+ * 表必须三层齐全（Layer I/II/III）—— 只写前两层会把 Layer III 当成假同步，
+ * 读出 32kHz/64kbps 这种离谱数值（这个 bug 真出现过）。
+ */
 async function readMp3(fh, size) {
   const headBuf = Buffer.alloc(Math.min(size, 512 * 1024))
   await fh.read(headBuf, 0, headBuf.length, 0)
@@ -198,11 +205,22 @@ async function readMp3(fh, size) {
   let audioStart = 0
   if (headBuf.toString('latin1', 0, 3) === 'ID3') {
     audioStart = 10 + (((headBuf[6] & 0x7f) << 21) | ((headBuf[7] & 0x7f) << 14) | ((headBuf[8] & 0x7f) << 7) | (headBuf[9] & 0x7f))
+    if (headBuf[5] & 0x10) audioStart += 10 // 有 footer
   }
   const RATES = { 3: [44100, 48000, 32000], 2: [22050, 24000, 16000], 0: [11025, 12000, 8000] }
   const BR = {
-    1: { 1: [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448], 2: [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384] },
-    2: { 1: [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256], 2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160] },
+    // MPEG1
+    1: {
+      1: [0, 32, 64, 96, 128, 160, 192, 224, 256, 288, 320, 352, 384, 416, 448],
+      2: [0, 32, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320, 384],
+      3: [0, 32, 40, 48, 56, 64, 80, 96, 112, 128, 160, 192, 224, 256, 320],
+    },
+    // MPEG2 / MPEG2.5
+    2: {
+      1: [0, 32, 48, 56, 64, 80, 96, 112, 128, 144, 160, 176, 192, 224, 256],
+      2: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+      3: [0, 8, 16, 24, 32, 40, 48, 56, 64, 80, 96, 112, 128, 144, 160],
+    },
   }
   const out = { container: 'mp3', tags: id3.tags, picture: id3.picture }
   for (let i = audioStart; i < headBuf.length - 4; i++) {
@@ -211,18 +229,42 @@ async function readMp3(fh, size) {
     const layerBits = (headBuf[i + 1] >> 1) & 0x03
     const brIdx = (headBuf[i + 2] >> 4) & 0x0f
     const srIdx = (headBuf[i + 2] >> 2) & 0x03
+    const padding = (headBuf[i + 2] >> 1) & 0x01
+    const channelMode = (headBuf[i + 3] >> 6) & 0x03
     if (verBits === 1 || layerBits === 0 || brIdx === 0 || brIdx === 15 || srIdx === 3) continue
     const version = verBits === 3 ? 1 : 2
     const layer = 4 - layerBits
-    const bitrate = (BR[version]?.[layer] || [])[brIdx]
+    const bitrate = (BR[version]?.[layer] || [])[brIdx] * 1000
     const sampleRate = (RATES[verBits] || [])[srIdx]
     if (!bitrate || !sampleRate) continue
-    out.bitrate = bitrate * 1000
+    // 帧长：Layer I 系数 12，Layer II 固定 144，Layer III 在 MPEG2/2.5 是 72
+    const coef = layer === 1 ? 12 : layer === 2 || version === 1 ? 144 : 72
+    const frameLen = Math.floor((coef * bitrate) / sampleRate) + (layer === 1 ? padding * 4 : padding)
+    // 用「下一帧也像帧头」排掉假同步（到了缓冲区末尾就没法验，直接认）
+    const next = i + frameLen
+    if (next + 1 < headBuf.length && !(headBuf[next] === 0xff && (headBuf[next + 1] & 0xe0) === 0xe0)) continue
+    out.bitrate = bitrate
     out.sampleRate = sampleRate
-    out.channels = ((headBuf[i + 3] >> 6) & 0x03) === 3 ? 1 : 2
-    out.duration = ((size - audioStart) * 8) / out.bitrate
+    out.channels = channelMode === 3 ? 1 : 2
+    const samplesPerFrame = layer === 1 ? 384 : layer === 3 && version === 2 ? 576 : 1152
+    // Xing/Info 头就在第一帧的边信息后面
+    const sideLen = version === 1 ? (out.channels === 1 ? 17 : 32) : out.channels === 1 ? 9 : 17
+    const xingAt = i + 4 + sideLen
+    const xingTag = headBuf.toString('latin1', xingAt, xingAt + 4)
+    if ((xingTag === 'Xing' || xingTag === 'Info') && xingAt + 12 <= headBuf.length) {
+      const flags = headBuf.readUInt32BE(xingAt + 4)
+      if (flags & 0x01) {
+        const frames = headBuf.readUInt32BE(xingAt + 8)
+        if (frames > 0) {
+          out.duration = (frames * samplesPerFrame) / sampleRate
+          out.durationEstimated = false
+          return out
+        }
+      }
+    }
+    out.duration = ((size - audioStart) * 8) / bitrate
     out.durationEstimated = true
-    break
+    return out
   }
   return out
 }

@@ -4,9 +4,10 @@
 #   ① 已总结稿.md\  —— 25 篇笔记的源文件（仓库里有）
 #   ② NoteWeb\      —— 网站程序；dist\ 是现场打包出来的成品
 #
-# 注意：music\ 里的音频不在仓库里（见 .gitignore），所以 Netlify 自动打包出来的
-#       是不含音频的轻量版（约 2 MB）—— 这也正好躲开了「单文件超过 10 MB 传不上去」的限制。
-#       想把音乐也放上网，需要另外准备压过的网络版音频。
+# 音频分两套：
+#   music\      —— 14 首 FLAC，468 MB，只在本机听；被 .gitignore 排除，不进仓库
+#   music-web\  —— 14 首 MP3（160 kbps），约 52 MB，单首最大 5.1 MB，放进仓库给线上用
+# 下面 NW_MUSIC_DIR 就是让线上打包用 MP3 那一套；不设的话只会打出一个没有音乐的纯笔记版。
 
 [build]
   base = "NoteWeb"
@@ -15,3 +16,4 @@
 
 [build.environment]
   NODE_VERSION = "22"
+  NW_MUSIC_DIR = "music-web"

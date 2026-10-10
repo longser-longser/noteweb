@@ -37,11 +37,27 @@ export const config = {
   /** 生成的清单文件（不用管） */
   manifestFile: join(ROOT, 'data', 'manifest.json'),
 
-  /** 曲库文件夹：想加歌就把音频文件丢进这里（支持子文件夹），清单自动重扫 */
-  musicDir: join(ROOT, 'music'),
+  /**
+   * 曲库文件夹：想加歌就把音频文件丢进这里（支持子文件夹），清单自动重扫。
+   *
+   * 用环境变量 NW_MUSIC_DIR 可以换成别的文件夹，专门给网上那份准备小体积的音频：
+   *   set NW_MUSIC_DIR=music-web && set NW_DIST=dist-网页版 && node scripts/build.mjs
+   * 这样本地 dist 照旧用无损的 music\，网上那份用压缩过的 music-web\，互不干扰。
+   */
+  musicDir: join(ROOT, process.env.NW_MUSIC_DIR || 'music'),
 
-  /** 曲库清单（自动扫描生成，不用手改） */
-  musicManifestFile: join(ROOT, 'data', 'music.json'),
+  /**
+   * 曲库清单（自动扫描生成，不用手改）。
+   * 换了 NW_MUSIC_DIR 就换一份清单文件，免得两边的清单互相覆盖：
+   * music → data/music.json，music-web → data/music-web.json。
+   */
+  musicManifestFile: join(
+    ROOT,
+    'data',
+    (process.env.NW_MUSIC_DIR || 'music').replace(/^music[-_]/, '') === 'music'
+      ? 'music.json'
+      : `music-${(process.env.NW_MUSIC_DIR || 'music').replace(/^music[-_]/, '')}.json`,
+  ),
 
   /** 曲库手工补充信息（可选）：补标题/艺术家/封面/歌词/排序，或给原创作品打标记 */
   musicOverridesFile: join(ROOT, 'music.overrides.json'),

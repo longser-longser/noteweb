@@ -117,11 +117,12 @@ courseDisplay: {
 
 | 脚本 | 作用 |
 |---|---|
-| `_打包网站.bat` | 同步 + 打包 + 自检 → `dist\`（**带音乐，470 MB**，本地/局域网用） |
-| `_打包网页版.bat` | 打包成不含音频的轻量版 → `dist-网页版\`（**2.2 MB**）+ `_发布包_网页版.zip`，专门用来传 Netlify 这类有体积限制的托管 |
+| `_打包网站.bat` | 同步 + 打包 + 自检 → `dist\`（**带无损音乐，470 MB**，本地/局域网用） |
+| `_打包网页版.bat` | 打包成能上传的版本 → `dist-网页版\` + `_发布包_网页版.zip`。**有 `music-web\` 就一起装上**（14 首 MP3，约 54 MB，线上有播放器）；没有就打成纯笔记版（约 2 MB） |
 
-> 轻量版等价于设置环境变量 `NW_NO_MUSIC=1` 和 `NW_DIST=dist-网页版` 后跑 `npm run build`；
+> 网页版等价于：`NW_MUSIC_DIR=music-web` + `NW_DIST=dist-网页版` 跑 `npm run build`（没有 `music-web\` 时用 `NW_NO_MUSIC=1`）；
 > 输出目录用 `NW_DIST` 换，所以原来的 `dist\` 不会被覆盖。
+> 音频目录用 `NW_MUSIC_DIR` 换（默认 `music`），清单会分别存成 `data/music.json` 与 `data/music-web.json`，互不覆盖。
 
 > 如果 PowerShell 报错说不认识 `npm`，说明 Node.js 没装好或没进 PATH，参考下面的"故障排查"。
 
@@ -156,6 +157,25 @@ courseDisplay: {
 - 同一个站点里只有一个地方出声：你在别处点了播放，原来那个窗口（含小窗）会在两三秒内自动停下。
 
 **版权**：音乐库页脚写明了"版权归原作者及发行方所有，本站仅为个人学习整理，仅供个人试听，请勿转载传播"。把商业唱片传到公开网站上是有风险的，发布前想清楚（见 `部署到网上.md`）。
+
+### 线上版音频（`music-web\`，MP3 160 kbps）
+
+两套音频分工，别搞混：
+
+| 目录 | 内容 | 体积 | 进不进 git / 上不上线 | 谁在用 |
+|---|---|---|---|---|
+| `music\` | 14 首 FLAC 原文件 | 467.9 MB | **不进仓库**（`.gitignore` 排除）、不上线 | 本地/局域网（`dist\`） |
+| `music-web\` | 同样 14 首，转成 MP3 160 kbps | 52.0 MB，单首最大 5.1 MB | **进仓库**，线上就用它 | 线上（`dist-网页版\`、GitHub Pages、Netlify） |
+
+- 转码命令（有 ffmpeg 就能重跑，改 `<音乐名>` 即可；`-map 0:v? -disposition:v attached_pic` 是把内嵌封面一起带过去）：
+  ```bat
+  ffmpeg -hide_banner -loglevel error -y -i "music\<音乐名>.flac" ^
+    -map 0:a:0 -map 0:v? -c:v copy -disposition:v attached_pic ^
+    -c:a libmp3lame -b:a 160k -map_metadata 0 -id3v2_version 3 -write_id3v1 0 "music-web\<音乐名>.mp3"
+  ```
+- 时长/采样率/码率是**按 MPEG 帧头算的**（优先读 Xing/Info 帧数），界面显示的时长与 ffprobe 差在 0.1 秒以内；
+- MP3 是**有损**格式，界面会老老实实标「有损」，不会冒充无损；
+- 加了新歌想让线上也有：把 FLAC 丢进 `music\` → 用上面的命令转一份到 `music-web\` → `npm run music`（会分别生成 `data/music.json` 和 `data/music-web.json`）→ 双击 `_打包网页版.bat` → push。
 
 ---
 
