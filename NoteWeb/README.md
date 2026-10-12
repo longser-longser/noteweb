@@ -25,6 +25,7 @@ NoteWeb/
 ├─ notes/                  笔记副本（由同步脚本从「已总结稿.md」复制过来）
 ├─ web/                    网站本体：css / js / vendor（内置的 Markdown 库）
 │   ├─ css/style.css       全部样式，改颜色改这里
+│   ├─ img/                全站背景图（bg-palace-day.webp / bg-palace-night.webp）
 │   ├─ js/app.js           深色模式、搜索、目录、自动刷新等交互
 │   ├─ music/              音乐播放器（player.js / player.css / default-cover.svg）
 │   │   └─ covers/         从音频文件里抽出来的封面（自动生成）
@@ -387,9 +388,21 @@ GitHub Pages 的自动发布流程已经写在项目里（`.github/workflows/dep
 | 某篇笔记的标题 | `config.mjs` → `noteTitles` |
 | 配色、字号、间距 | `web/css/style.css` 顶部的 `:root` 变量 |
 | 深色模式配色 | `web/css/style.css` 的 `[data-theme="dark"]` |
+| **全站背景图（宫殿大厅）** | `web/img/bg-palace-day.webp`（浅色用）/ `bg-palace-night.webp`（深色用），浓淡改 `style.css` 里的 `--bg-veil` |
 | 搜索、目录、深色模式等交互 | `web/js/app.js` |
 | 页面结构（侧边栏、翻页） | `scripts/site.mjs` |
 | Markdown 渲染规则 | `scripts/renderer.mjs` |
+
+### 全站背景图怎么换、怎么调浓淡
+
+- 图放在 `web/img/`，两套：**浅色模式用 `bg-palace-day.webp`（大厅昼景）**，**深色模式用 `bg-palace-night.webp`（大厅夜景）**，各约 100 KB（1920 宽、WebP）。
+- 背景不是画在 `body` 上，而是 `body::before`（固定定位、铺满视口）——这样滚长文章时图片不会被拉长，手机上也不会失效。
+- 图上面压了一层**同色半透明遮罩**保证字看得清：浅色 `--bg-veil: rgba(247,247,245,.83)`、深色 `rgba(18,20,26,.86)`。**想让图更明显就调小透明度**（例如 `.75`），想更淡就调大（例如 `.92`）。
+- 换图：把自己的图按同样文件名放进 `web/img/` 重新打包即可；只想换一张也行（例如深色还用大厅夜景、浅色换成自己的图）。
+- 打印时背景图会自动隐藏（省墨）。
+
+> 图片来源：本机 DSH 皮肤插件 `maid-atelier`（女仆工坊）里的宫殿大厅场景图。自己本地/局域网用没问题；**如果要公开部署，注意这张图是别人做的美术素材**，公开场合最好注明来源或换成自己的图。
+
 
 改完 `scripts/` 或 `site.mjs` → **重启服务器**（`Ctrl + C` 后重新 `npm start`）。
 改 `web/css` 或 `web/js` → **刷新浏览器即可**，不用重启。

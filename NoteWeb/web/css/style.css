@@ -20,6 +20,9 @@
   --radius: 10px;
   --sidebar-w: 288px;
   --content-w: 780px;
+  /* 全站背景：浅色用宫殿大厅的"昼景"，配一层同色半透明遮罩，保证字看得清 */
+  --bg-art: url('../img/bg-palace-day.webp');
+  --bg-veil: rgba(247, 247, 245, .83);
   --font: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Hiragino Sans GB",
     "Microsoft YaHei UI", "Microsoft YaHei", "Source Han Sans SC", "Noto Sans CJK SC", sans-serif;
   --font-mono: "JetBrains Mono", "Cascadia Code", "SFMono-Regular", Consolas, "Liberation Mono",
@@ -40,6 +43,9 @@
   --code-bg: #1c2027;
   --mark: #5c4d00;
   --shadow: 0 1px 2px rgba(0, 0, 0, .3), 0 10px 30px rgba(0, 0, 0, .25);
+  /* 深色模式换成宫殿大厅的"夜景" */
+  --bg-art: url('../img/bg-palace-night.webp');
+  --bg-veil: rgba(18, 20, 26, .86);
 }
 
 /* 代码高亮：浅色用 github.css，深色用 github-dark.css。
@@ -77,16 +83,36 @@
    JS 里 top.hidden = true 等于没生效。这里补一条兜底，凡是带 hidden 属性的就真的不显示。 */
 [hidden] { display: none !important; }
 
-html { scroll-behavior: smooth; scroll-padding-top: 74px; -webkit-text-size-adjust: 100%; }
+html { scroll-behavior: smooth; scroll-padding-top: 74px; -webkit-text-size-adjust: 100%; background: var(--bg); }
 
 body {
   margin: 0;
-  background: var(--bg);
+  background: transparent;
   color: var(--text);
   font-family: var(--font);
   font-size: 16px;
   line-height: 1.75;
   overflow-wrap: break-word;
+}
+
+/* 全站背景图（宫殿大厅，浅色昼景 / 深色夜景）。
+   用固定定位的伪元素而不是 body 的 background-image：
+   这样它永远按"视口"铺满（cover 只缩放一屏），滚长文章时也不会被拉伸，手机上同样有效。
+   变量在 :root 与 [data-theme="dark"] 里切换，想换图或调浓淡只改那两处。 */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  background-image: linear-gradient(var(--bg-veil), var(--bg-veil)), var(--bg-art);
+  background-position: center, center;
+  background-size: cover, cover;
+  background-repeat: no-repeat, no-repeat;
+}
+/* 打印时不要背景图，省墨 */
+@media print {
+  body::before { display: none; }
 }
 
 a { color: var(--accent); text-decoration: none; }
@@ -321,6 +347,10 @@ a:hover { text-decoration: underline; }
 }
 .article-body th { background: var(--bg-soft); font-weight: 650; white-space: nowrap; }
 .article-body tbody tr:nth-child(even) { background: color-mix(in srgb, var(--bg-soft) 45%, transparent); }
+/* 手机上表格第一列多半是命令名/名称，别被拆成两行（表格本身可横向滚动，见上一条 overflow-x） */
+@media (max-width: 620px) {
+  .article-body td:first-child { white-space: nowrap; }
+}
 
 .article-body img { max-width: 100%; height: auto; border-radius: var(--radius); border: 1px solid var(--border-soft); }
 .article-body a { text-decoration: underline; text-decoration-color: color-mix(in srgb, var(--accent) 40%, transparent); text-underline-offset: 2px; }
