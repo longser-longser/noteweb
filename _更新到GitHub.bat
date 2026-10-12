@@ -69,10 +69,20 @@ echo   本机代理：%PROXY%
 if errorlevel 1 goto :push_fail
 
 :pushed
+rem ---- 推完再核对一次：本地最新提交和 GitHub 上的是不是同一个（防止以为推上去了其实没有）----
+%GITC% rev-parse HEAD > "%TEMP%\nw_head.txt" 2>nul
+%GITC% rev-parse origin/main > "%TEMP%\nw_remote_head.txt" 2>nul
+set "LOCAL="
+set "REMOTE="
+set /p LOCAL=<"%TEMP%\nw_head.txt"
+set /p REMOTE=<"%TEMP%\nw_remote_head.txt"
+del "%TEMP%\nw_head.txt" "%TEMP%\nw_remote_head.txt" 2>nul
+if not "%LOCAL%"=="%REMOTE%" goto :not_pushed
 
 echo.
 echo ============================================================
-echo   推送成功！
+echo   推送成功！（本地和 GitHub 上已经是同一个版本）
+echo   提交号：%LOCAL%
 echo   接下来 GitHub 会自己打包发布（约 1~2 分钟），然后刷新网址即可：
 echo.
 powershell -NoProfile -Command "$u='%URL%' -replace '\.git$',''; $p=$u -split '/'; Write-Host ('     网址      https://{0}.github.io/{1}/' -f $p[-2],$p[-1]); Write-Host ('     看进度    {0}/actions' -f $u)"
@@ -91,6 +101,19 @@ echo ============================================================
 echo   常见原因：
 echo     1. 网络不通 / 需要登录：重新双击一次，按提示在浏览器里登录 GitHub
 echo     2. 仓库被改过名或被删了：确认地址 %URL% 还能打开
+echo ============================================================
+if not "%NOTES_NO_PAUSE%"=="1" pause
+exit /b 1
+
+:not_pushed
+echo.
+echo ============================================================
+echo   注意：提交只在本地，没有推上 GitHub！
+echo ============================================================
+echo   本地最新提交：%LOCAL%
+echo   GitHub 上还是：%REMOTE%
+echo   也就是说网站上还是旧的，改动没有生效。
+echo   请检查网络（或等一会儿）后，重新双击本文件。
 echo ============================================================
 if not "%NOTES_NO_PAUSE%"=="1" pause
 exit /b 1

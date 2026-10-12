@@ -1,14 +1,56 @@
-/**
+﻿/**
  * 扫描 notes 文件夹，生成「笔记清单」（manifest.json）。
  *
  * 清单里记录了：每篇笔记属于哪个分类、标题是什么、多大、什么时候改的，
  * 以及一小段正文（给搜索用）。服务器和打包脚本都读这份清单。
  */
 import { promises as fs } from 'node:fs'
+import { execFile } from 'node:child_process'
 import { join, relative, basename, extname, sep } from 'node:path'
-import { config } from '../config.mjs'
+import { config, ROOT } from '../config.mjs'
 
 export const NOTE_EXT = new Set(['.md', '.markdown', '.mdown', '.mkd'])
+
+/** 跑一条 git 命令；没装 git、不是 git 仓库、超时 —— 一律当作「拿不到」，返回 null */
+function git(args, cwd) {
+  return new Promise((resolve) => {
+    execFile('git', args, { cwd, timeout: 6000, maxBuffer: 16 * 1024 * 1024, windowsHide: true }, (err, stdout) =>
+      resolve(err ? null : String(stdout))
+    )
+  })
+}
+
+/**
+ * 生成「仓库内文件路径 → 最后一次提交时间」的对照表。
+ *
+ * 为什么需要它：GitHub Actions 每次都是把仓库重新检出，文件的修改时间会变成"检出时间"，
+ * 结果线上每篇笔记的日期都显示成同一天。这里改成优先用 git 里的提交时间。
+ */
+async function gitLastCommitDates() {
+  const map = new Map()
+  try {
+    const top = await git(['rev-parse', '--show-toplevel'], ROOT)
+    if (!top) return { map, root: null }
+    const root = top.trim()
+    // core.quotepath=false：否则中文路径会输出成 \344\270\255 这种转义形式，对不上
+    const log = await git(['-c', 'core.quotepath=false', 'log', '--format=%cI', '--name-only'], root)
+    if (!log) return { map, root }
+    let when = null
+    for (const line of log.split('\n')) {
+      const s = line.trim()
+      if (!s) continue
+      if (/^\d{4}-\d{2}-\d{2}T/.test(s)) {
+        when = new Date(s)
+        continue
+      }
+      // git log 是从新到旧，同一个文件第一次遇到的就是它最后一次提交
+      if (when && !map.has(s)) map.set(s, when)
+    }
+    return { map, root }
+  } catch {
+    return { map, root: null }
+  }
+}
 
 async function walk(dir) {
   const out = []
@@ -98,12 +140,31 @@ function sectionWeight(name) {
   return m ? Number(m[1]) * 1000 + Number(m[2] || 0) : 999999
 }
 
+/** 读取「笔记路径 → 显示日期」的手填表（note-dates.json，可不要） */
+async function readNoteDates() {
+  try {
+    const raw = await fs.readFile(join(ROOT, 'note-dates.json'), 'utf8')
+    const json = JSON.parse(raw)
+    const out = new Map()
+    for (const [k, v] of Object.entries(json)) {
+      if (k.startsWith('_') || typeof v !== 'string') continue
+      const d = new Date(v.replace(' ', 'T') + ':00')
+      if (!isNaN(d.getTime())) out.set(k, d)
+    }
+    return out
+  } catch {
+    return new Map()
+  }
+}
+
 /** 读取笔记文件夹并生成清单对象 */
 export async function buildManifest() {
   const { notesDir } = config
   const files = await walk(notesDir)
   const notes = []
   const courseDisplay = config.courseDisplay || {}
+  const { map: gitDates, root: repoRoot } = await gitLastCommitDates()
+  const noteDates = await readNoteDates()
 
   for (const file of files) {
     const rel = relative(notesDir, file).split(sep).join('/')
@@ -116,6 +177,17 @@ export async function buildManifest() {
     const title = (config.noteTitles && config.noteTitles[rel]) || extractTitle(raw, file)
     const text = plainText(raw)
 
+    // 显示用的日期，优先级：
+    // ① note-dates.json 里手填的日期（线上重新检出后唯一可靠的来源）
+    // ② 文件修改时间 与 它在 git 里最后一次提交时间 里更早的那个
+    //    （线上 mtime 会变成检出时间，所以要用 git 的提交时间；本地刚改完还没提交时 mtime 才准）
+    let when = noteDates.get(rel) || stat.mtime
+    if (!noteDates.has(rel) && repoRoot && gitDates.size) {
+      const srcRel = relative(repoRoot, join(config.sourceDir, rel)).split(sep).join('/')
+      const committed = gitDates.get(srcRel)
+      if (committed && committed.getTime() < when.getTime()) when = committed
+    }
+
     notes.push({
       path: rel,
       folder,
@@ -124,8 +196,8 @@ export async function buildManifest() {
       fileName,
       slug: slugify(fileName),
       size: stat.size,
-      mtime: stat.mtimeMs,
-      updated: `${stat.mtime.getFullYear()}-${pad(stat.mtime.getMonth() + 1)}-${pad(stat.mtime.getDate())} ${pad(stat.mtime.getHours())}:${pad(stat.mtime.getMinutes())}`,
+      mtime: when.getTime(),
+      updated: `${when.getFullYear()}-${pad(when.getMonth() + 1)}-${pad(when.getDate())} ${pad(when.getHours())}:${pad(when.getMinutes())}`,
       words: text.replace(/\s/g, '').length,
       excerpt: text.slice(0, 600),
       order: sectionWeight(fileName),
